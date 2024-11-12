@@ -2,7 +2,11 @@
 <module type="EMPTY_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/Chess_board/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/Chess_interface/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/chess_example/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/Chess_board/target" />
+      <excludeFolder url="file://$MODULE_DIR$/Chess_interface/target" />
       <excludeFolder url="file://$MODULE_DIR$/chess_example/target" />
     </content>
     <orderEntry type="inheritedJdk" />
