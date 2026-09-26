@@ -5,7 +5,7 @@
 
 use jacquet::rules::{is_courier_trapped, new_game, Move};
 use jacquet::turn::{play_turn, DieOutcome};
-use jacquet::{Player, Roll};
+use jacquet::Roll;
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
