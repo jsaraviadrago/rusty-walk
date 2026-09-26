@@ -67,6 +67,20 @@ pub fn play_turn(
     mut choose: impl FnMut(&[Move]) -> Move,
 ) -> TurnLog {
     let player = state.turn;
+
+    // Chequeo de derrota por postillón atrapado (RULES.md sección 6): se
+    // resuelve antes de tirar, no depende de los dados de esta jugada.
+    if !state.player_state(player).courier.arrived
+        && crate::rules::is_courier_trapped(&state.board, player)
+    {
+        return TurnLog {
+            outcomes: Vec::new(),
+            turn_passes: false,
+            repeats_turn: false,
+            winner: Some(player.opponent()),
+        };
+    }
+
     let mut outcomes = Vec::new();
     let mut forfeited = false;
 

@@ -12,7 +12,7 @@
 //! con invertir `absolute_index` para saber, para un jugador dado, cuántas
 //! fichas tiene en cada posición relativa de su propio camino.
 
-use crate::types::{Board, Player};
+use crate::types::{Board, Courier, GameState, Player, PlayerState, Point};
 use std::collections::BTreeMap;
 
 /// Cantidad de puntos del tablero (y por lo tanto, longitud del camino de
@@ -48,7 +48,7 @@ pub fn absolute_index(player: Player, relative: u8) -> usize {
 /// devuelve la posición relativa en el camino de ese jugador.
 fn relative_index(player: Player, absolute: usize) -> u8 {
     let start = start_offset(player) as i16;
-    ((absolute as i16 - start).rem_euclid(PATH_LEN as i16)) as u8
+    (((absolute as i16 - start).rem_euclid(PATH_LEN as i16)) as u8)
 }
 
 fn start_offset(player: Player) -> u8 {
@@ -199,4 +199,44 @@ pub fn has_legal_move_for_die(
     courier_arrived: bool,
 ) -> bool {
     !legal_moves_for_die(board, player, die, courier_arrived).is_empty()
+}
+
+/// true si el postillón de `player` todavía no llegó a su cuadrante final
+/// y el rival ocupa los 6 puntos de esa zona (RULES.md, sección 6): no hay
+/// ningún valor de dado que lo pueda hacer entrar, así que el jugador
+/// pierde la partida de inmediato.
+///
+/// No depende de la tirada actual: es una condición estructural del
+/// tablero. Se llama al empezar el turno de `player`, antes de tirar los
+/// dados (ver `turn.rs`).
+pub fn is_courier_trapped(board: &Board, player: Player) -> bool {
+    let opponent = player.opponent();
+    (HOME_START..PATH_LEN).all(|relative| {
+        let abs = absolute_index(player, relative);
+        matches!(board.points[abs], Some((owner, _)) if owner == opponent)
+    })
+}
+
+/// Arma el estado inicial de una partida: ambos jugadores con sus 15
+/// fichas apiladas en su propio punto de partida, turno de White primero,
+/// ningún postillón llegado todavía.
+pub fn new_game() -> GameState {
+    let mut points: [Point; 24] = [None; 24];
+    points[absolute_index(Player::White, 0)] = Some((Player::White, 15));
+    points[absolute_index(Player::Black, 0)] = Some((Player::Black, 15));
+
+    let fresh_player = || PlayerState {
+        courier: Courier {
+            position: None,
+            arrived: false,
+        },
+        borne_off: 0,
+    };
+
+    GameState {
+        board: Board { points },
+        turn: Player::White,
+        white: fresh_player(),
+        black: fresh_player(),
+    }
 }
