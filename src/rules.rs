@@ -12,7 +12,7 @@
 //! con invertir `absolute_index` para saber, para un jugador dado, cuántas
 //! fichas tiene en cada posición relativa de su propio camino.
 
-use crate::types::{Board, GameState, Player};
+use crate::types::{Board, Player};
 use std::collections::BTreeMap;
 
 /// Cantidad de puntos del tablero (y por lo tanto, longitud del camino de
@@ -48,7 +48,7 @@ pub fn absolute_index(player: Player, relative: u8) -> usize {
 /// devuelve la posición relativa en el camino de ese jugador.
 fn relative_index(player: Player, absolute: usize) -> u8 {
     let start = start_offset(player) as i16;
-    (((absolute as i16 - start).rem_euclid(PATH_LEN as i16)) as u8)
+    ((absolute as i16 - start).rem_euclid(PATH_LEN as i16)) as u8
 }
 
 fn start_offset(player: Player) -> u8 {
