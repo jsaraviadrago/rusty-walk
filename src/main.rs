@@ -3,9 +3,9 @@
 //! aplicar elección" se reemplaza por lo que sea que mande la UI, pero
 //! `play_turn` y el resto del motor no deberían necesitar cambios.
 
-use rusty_walk::rules::{is_courier_trapped, new_game, Move};
-use rusty_walk::turn::{play_turn, DieOutcome};
-use rusty_walk::{Player, Roll};
+use jacquet::rules::{is_courier_trapped, new_game, Move};
+use jacquet::turn::{play_turn, DieOutcome};
+use jacquet::{Player, Roll};
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
