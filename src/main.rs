@@ -3,9 +3,9 @@
 //! aplicar elección" se reemplaza por lo que sea que mande la UI, pero
 //! `play_turn` y el resto del motor no deberían necesitar cambios.
 
-use jacquet::rules::{is_courier_trapped, new_game, Move};
+use jacquet::rules::{is_courier_trapped, new_game, player_positions, Move};
 use jacquet::turn::{play_turn, DieOutcome};
-use jacquet::Roll;
+use jacquet::{GameState, Player, Roll};
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -45,6 +45,7 @@ fn main() {
 
     loop {
         println!("\n=== Turno de {:?} ===", state.turn);
+        print_board(&state);
 
         // Chequeo informativo antes de tirar (play_turn lo vuelve a
         // chequear igual, pero así el jugador entiende por qué terminó
@@ -87,6 +88,9 @@ fn main() {
             }
         }
 
+        println!("\nTablero después de la jugada:");
+        print_board(&state);
+
         if let Some(winner) = log.winner {
             println!("\n¡{:?} gana la partida!", winner);
             break;
@@ -95,6 +99,49 @@ fn main() {
         if log.repeats_turn {
             println!("(triple completo: {:?} vuelve a tirar)", state.turn);
         }
+    }
+}
+
+/// Imprime el tablero de dos formas: por punto absoluto (lo que realmente
+/// hay en cada una de las 24 casillas compartidas) y por posición relativa
+/// de cada jugador (más fácil para seguir el avance del postillón y del
+/// resto de las fichas a lo largo de su propio camino).
+fn print_board(state: &GameState) {
+    println!("  Tablero (punto absoluto: dueño×cantidad):");
+    print!("   ");
+    for idx in 0..24usize {
+        match state.board.points[idx] {
+            Some((owner, count)) => {
+                let letter = match owner {
+                    Player::White => 'W',
+                    Player::Black => 'B',
+                };
+                print!(" {:>2}:{}{}", idx, letter, count);
+            }
+            None => print!(" {:>2}:.", idx),
+        }
+    }
+    println!();
+
+    for player in [Player::White, Player::Black] {
+        let ps = state.player_state(player);
+        let positions = player_positions(&state.board, player);
+        let positions_str = positions
+            .iter()
+            .map(|(rel, count)| format!("{}×{}", rel, count))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!(
+            "  {:?}: postillón {} | fuera del tablero: {}/15 | posiciones relativas: [{}]",
+            player,
+            if ps.courier.arrived {
+                "llegó"
+            } else {
+                "en camino"
+            },
+            ps.borne_off,
+            positions_str
+        );
     }
 }
 
