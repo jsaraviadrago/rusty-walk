@@ -1,5 +1,5 @@
 [package]
-name = "jacquet"
+name = "rusty-walk"
 version = "0.1.0"
 edition = "2021"
 description = "Motor del juego de mesa Jacquet (variación familiar del backgammon)"
