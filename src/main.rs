@@ -3,14 +3,45 @@
 //! aplicar elección" se reemplaza por lo que sea que mande la UI, pero
 //! `play_turn` y el resto del motor no deberían necesitar cambios.
 
-use rand::Rng;
 use rusty_walk::rules::{is_courier_trapped, new_game, Move};
 use rusty_walk::turn::{play_turn, DieOutcome};
 use rusty_walk::{Player, Roll};
 use std::io::{self, Write};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Generador de números pseudoaleatorios mínimo (xorshift), sin
+/// dependencias externas. No es criptográficamente seguro ni de calidad
+/// estadística perfecta, pero de sobra para tirar dados de un juego de
+/// mesa. Evita compilar crates externos (rand) mientras se diagnostica el
+/// SIGSEGV del compilador en esta máquina.
+struct Rng(u64);
+
+impl Rng {
+    fn new() -> Self {
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0x2545F4914F6CDD1D);
+        Rng(seed | 1) // nunca 0
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+
+    fn die(&mut self) -> u8 {
+        (self.next_u64() % 6) as u8 + 1
+    }
+}
 
 fn main() {
     let mut state = new_game();
+    let mut rng = Rng::new();
 
     loop {
         println!("\n=== Turno de {:?} ===", state.turn);
@@ -28,7 +59,7 @@ fn main() {
             break;
         }
 
-        let dice = roll_three_dice();
+        let dice = [rng.die(), rng.die(), rng.die()];
         println!("Dados: {:?}", dice);
 
         let roll = Roll { dice };
@@ -67,15 +98,6 @@ fn main() {
             println!("(triple completo: {:?} vuelve a tirar)", state.turn);
         }
     }
-}
-
-fn roll_three_dice() -> [u8; 3] {
-    let mut rng = rand::thread_rng();
-    [
-        rng.gen_range(1..=6),
-        rng.gen_range(1..=6),
-        rng.gen_range(1..=6),
-    ]
 }
 
 /// Si hay una sola opción, la toma sola. Si hay varias (más de una ficha

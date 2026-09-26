@@ -6,4 +6,3 @@ description = "Motor del juego de mesa Jacquet (variación familiar del backgamm
 authors = ["Juan Carlos <jsaraviadrago>"]
 
 [dependencies]
-rand = "0.8"
