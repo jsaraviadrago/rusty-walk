@@ -74,9 +74,7 @@ fn main() {
             }
         );
 
-        // Orden simple: tal como salió la expansión. Elegir otro orden
-        // queda para cuando haya una UI que se lo pregunte al jugador.
-        let order = expanded.moves.clone();
+        let order = pick_order(&expanded.moves);
 
         let log = play_turn(&mut state, &order, expanded.repeats_turn, pick_move);
 
@@ -98,6 +96,54 @@ fn main() {
             println!("(triple completo: {:?} vuelve a tirar)", state.turn);
         }
     }
+}
+
+/// Deja que el jugador elija en qué orden intentar los dados (RULES.md
+/// sección 3: el orden es libre). Si aprieta Enter sin escribir nada, usa
+/// el orden en que salieron los dados.
+fn pick_order(rolled: &[u8]) -> Vec<u8> {
+    println!(
+        "  Orden de dados [{}] (Enter para dejarlo así, o escribilos separados por espacio en el orden que quieras, ej: {} {}):",
+        rolled
+            .iter()
+            .map(|d| d.to_string())
+            .collect::<Vec<_>>()
+            .join(" "),
+        rolled.get(1).copied().unwrap_or(rolled[0]),
+        rolled[0]
+    );
+
+    loop {
+        print!("  > ");
+        io::stdout().flush().ok();
+
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_err() {
+            return rolled.to_vec();
+        }
+
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return rolled.to_vec();
+        }
+
+        let parsed: Result<Vec<u8>, _> = trimmed.split_whitespace().map(|s| s.parse()).collect();
+        match parsed {
+            Ok(order) if same_multiset(&order, rolled) => return order,
+            _ => println!(
+                "  Eso no es un reordenamiento válido de {:?}, probá de nuevo.",
+                rolled
+            ),
+        }
+    }
+}
+
+fn same_multiset(a: &[u8], b: &[u8]) -> bool {
+    let mut a = a.to_vec();
+    let mut b = b.to_vec();
+    a.sort_unstable();
+    b.sort_unstable();
+    a == b
 }
 
 /// Si hay una sola opción, la toma sola. Si hay varias (más de una ficha
