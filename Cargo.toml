@@ -1,0 +1,8 @@
+[package]
+name = "jacquet"
+version = "0.1.0"
+edition = "2021"
+description = "Motor del juego de mesa Jacquet (variación familiar del backgammon)"
+authors = ["Juan Carlos <jsaraviadrago>"]
+
+[dependencies]
