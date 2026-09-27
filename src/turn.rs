@@ -60,11 +60,15 @@ pub struct TurnLog {
 /// movimientos expandidos). `choose` decide, cuando un dado tiene más de
 /// un movimiento legal posible (varias fichas pueden jugarlo), cuál
 /// aplicar — típicamente vendría de la elección del jugador en la UI.
+/// `on_outcome` se llama justo cuando se resuelve cada dado (antes de
+/// pasar al siguiente), para que quien llame pueda mostrarlo en el momento
+/// en que ocurre en vez de esperar a que termine toda la tirada.
 pub fn play_turn(
     state: &mut GameState,
     order: &[u8],
     repeats_turn_from_roll: bool,
     mut choose: impl FnMut(&[Move]) -> Move,
+    mut on_outcome: impl FnMut(DieOutcome),
 ) -> TurnLog {
     let player = state.turn;
 
@@ -89,14 +93,18 @@ pub fn play_turn(
         let legal = legal_moves_for_die(&state.board, player, die, courier_arrived);
 
         if legal.is_empty() {
-            outcomes.push(DieOutcome::Forfeited(die));
+            let outcome = DieOutcome::Forfeited(die);
+            on_outcome(outcome);
+            outcomes.push(outcome);
             forfeited = true;
             break;
         }
 
         let mv = choose(&legal);
         apply_move(state, player, mv);
-        outcomes.push(DieOutcome::Applied(mv));
+        let outcome = DieOutcome::Applied(mv);
+        on_outcome(outcome);
+        outcomes.push(outcome);
 
         if state.has_won(player) {
             return TurnLog {

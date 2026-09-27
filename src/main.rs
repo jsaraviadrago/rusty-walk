@@ -77,16 +77,18 @@ fn main() {
 
         let order = pick_order(&expanded.moves);
 
-        let log = play_turn(&mut state, &order, expanded.repeats_turn, pick_move);
-
-        for outcome in &log.outcomes {
-            match outcome {
+        let log = play_turn(
+            &mut state,
+            &order,
+            expanded.repeats_turn,
+            pick_move,
+            |outcome| match outcome {
                 DieOutcome::Applied(mv) => println!("  -> {:?}", mv),
                 DieOutcome::Forfeited(die) => {
                     println!("  -> dado {} sin movimiento legal: se pierde el turno", die)
                 }
-            }
-        }
+            },
+        );
 
         println!("\nTablero después de la jugada:");
         print_board(&state);
