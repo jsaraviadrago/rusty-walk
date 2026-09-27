@@ -48,7 +48,7 @@ pub fn absolute_index(player: Player, relative: u8) -> usize {
 /// devuelve la posición relativa en el camino de ese jugador.
 fn relative_index(player: Player, absolute: usize) -> u8 {
     let start = start_offset(player) as i16;
-    (((absolute as i16 - start).rem_euclid(PATH_LEN as i16)) as u8)
+    ((absolute as i16 - start).rem_euclid(PATH_LEN as i16)) as u8
 }
 
 fn start_offset(player: Player) -> u8 {
