@@ -1,4 +1,4 @@
-# Jacquet — Reglas Oficiales de la Familia Drago
+# Jacquet — Reglas Oficiales de la Familia Saravia
 
 Sep 26, 2026 · Documentado por @Juan Carlos Saravia
 
@@ -26,7 +26,8 @@ Se juega con **tres dados** por turno (a diferencia del Jacquet clásico, que us
 - **Números distintos:** cada dado es un movimiento independiente — 3 movimientos en total.
 - **Doble parcial** (dos de los tres dados salen iguales, ej. 4-4-2): el valor duplicado se juega **cuatro veces**, más el valor suelto restante. Ejemplo: 4-4-2 se juega como 4, 4, 4, 4, 2 — cinco movimientos en total. El jugador elige libremente el orden en que los aplica. El turno **no se repite**.
 - **Triple** (los tres dados salen iguales, ej. 5-5-5): el valor se juega **seis veces**. Además, al terminar de jugarlos, **el turno se repite** (el mismo jugador vuelve a tirar).
-- **Dado sin movimiento legal:** si un dado no tiene ningún movimiento válido disponible (todos sus destinos posibles están bloqueados), ese dado **se pierde** y el turno pasa al rival.
+- **Dado sin movimiento legal:** si un dado no tiene movimiento posible en el momento de intentarlo, no se pierde ahí mismo — sigue disponible para reintentarlo más adelante en el mismo turno, si otro movimiento cambia el tablero. Recién cuando ninguno de los dados que quedan tiene movimiento posible, quedan definitivamente sin jugar: si la tirada era propia, pasan al rival, que los juega directo en su próximo turno en vez de tirar los suyos; si esos dados ya eran heredados y tampoco sirven, se pierden para siempre, sin rebotar de nuevo.
+- **Ficha tocada es ficha jugada:** una vez que aplicás un movimiento con un dado, esa jugada queda hecha — no se puede deshacer para probar un orden distinto. Por eso el chequeo de "no queda nada por jugar" se hace contra el tablero *tal como quedó después de tus jugadas ya hechas*, no contra todos los órdenes posibles que existían al principio del turno. Conviene pensar el orden antes de tocar una ficha, no ir probando hasta que algo funcione.
 
 ## 4. Ocupación y bloqueo de puntos
 
@@ -68,7 +69,7 @@ Fuente de referencia: [bkgm.com/variants/Jacquet.html](https://www.bkgm.com/vari
 | Hitting/captura | Existe (blot + barra) | No existe, nunca |
 | El courier/postillón | Debe llegar a su cuadrante final | Igual: debe llegar a su cuadrante final (por cualquiera de sus 6 puntos) |
 | Postillón atrapado | No hay derrota automática mencionada | Si el rival ocupa los 6 puntos del cuadrante final, el jugador pierde |
-| Dado sin movimiento legal | Se pierde | Se pierde y pasa el turno al rival |
+| Dado sin movimiento legal | Se pierde | Se reintenta luego en el turno; si nada sirve, pasa al rival (dados heredados); si tampoco a él, se pierde para siempre |
 | Límites de bloqueo propio | Máx. 2 puntos cerrados en tablero inicial; máx. 2 fichas en el mid point | No confirmado / pendiente |
 | Bear off | Requiere las 15 fichas en el cuadrante final | Igual |
 | Puntuación | Sistema de "marcia" (1, 2 o 3 puntos) | No existe; solo victoria/derrota |
@@ -77,3 +78,22 @@ Fuente de referencia: [bkgm.com/variants/Jacquet.html](https://www.bkgm.com/vari
 
 - La regla de "1 sola ficha bloquea" y la ausencia total de hitting son las diferencias más profundas respecto al Jacquet clásico: cambian por completo la estrategia de bloqueo del postillón rival.
 - La propia fuente de referencia (bkgm.com) señala que existen versiones "modernas" del Jacquet, descritas por Philippe Lalanne, que ya difieren bastante de las reglas de principios del siglo XIX que documenta el sitio. La variante familiar aquí descrita es, en ese sentido, una rama más de una tradición con múltiples variantes regionales y familiares — no una desviación de una única versión "oficial".
+
+## 9. Vocabulario tradicional de los dados
+
+En la mesa de la familia, los valores de los dados no se nombraban por su número — tenían nombre propio:
+
+| Valor | Nombre |
+| --- | --- |
+| 1 | As |
+| 2 | Don |
+| 3 | Tren |
+| 4 | Cuadra |
+| 5 | Quina |
+| 6 | Sena |
+
+Cuando salía un doble parcial (dos de los tres dados iguales), se nombraba como **"[plural del que se repite] al/a la [nombre del suelto]"**. Ejemplo confirmado: **2, 2, 3 → "dones al tren"**.
+
+Cuando salía un triple (los tres dados iguales), se nombraba como **"[plural] generales"**. Ejemplo confirmado: **5, 5, 5 → "quinas generales"**.
+
+Siguiendo el mismo patrón, otro ejemplo sería **6, 6, 6 → "senas generales"**, o **1, 1, 4 → "ases a la cuadra"**.

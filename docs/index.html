@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jacquet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --wood-dark: #241813;
+    --wood-mid: #3b2a20;
+    --felt: #17100c;
+    --point-light: #e8dcc5;
+    --point-light-shadow: #c9b98f;
+    --point-dark: #7c5236;
+    --point-dark-shadow: #5a3a26;
+    --brass: #b98a4e;
+    --brass-bright: #d4a86a;
+    --ivory: #f4efe4;
+    --ink: #262019;
+    --parchment-text: #efe6d8;
+    --muted-text: #b8a992;
+    --danger: #b5533d;
+    --success: #7d9066;
+    --page-bg: #17110d;
+    color-scheme: dark;
+  }
+
+  :root[data-theme="light"] { --page-bg: #ece3d3; }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    background: var(--page-bg);
+    color: var(--parchment-text);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: max(20px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px));
+    min-height: 100%;
+  }
+
+  h1, h2, .display { font-family: "Fraunces", Georgia, serif; }
+
+  .table {
+    width: 100%;
+    max-width: 780px;
+    background: linear-gradient(180deg, var(--wood-mid), var(--wood-dark));
+    border: 1px solid #5a4330;
+    border-radius: 14px;
+    box-shadow: 0 30px 60px -25px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
+    padding: 22px 22px 18px;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(185,138,78,0.25);
+  }
+
+  header h1 { margin: 0; font-size: 1.5rem; font-weight: 600; color: var(--ivory); }
+  header .subtitle { font-size: 0.8rem; color: var(--muted-text); margin-top: 2px; }
+
+  .header-right { display: flex; align-items: center; gap: 8px; }
+
+  #turn-indicator {
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--brass);
+    color: var(--brass-bright);
+    white-space: nowrap;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: 1px solid rgba(185,138,78,0.5);
+    color: var(--brass-bright);
+    border-radius: 999px;
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .icon-btn:hover { background: rgba(185,138,78,0.15); border-color: var(--brass-bright); }
+
+  .status-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+
+  .status-card {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(185,138,78,0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: var(--muted-text);
+  }
+  .status-card strong { color: var(--ivory); display: block; font-size: 0.88rem; margin-bottom: 2px; }
+  .status-card .courier-arrived { color: var(--success); }
+  .status-card .courier-pending { color: var(--brass-bright); }
+
+  .board {
+    background: var(--felt);
+    border-radius: 10px;
+    padding: 16px 12px;
+    box-shadow: inset 0 3px 12px rgba(0,0,0,0.6);
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr) 12px repeat(6, 1fr);
+    gap: 4px;
+    min-height: 118px;
+  }
+  .row + .row { margin-top: 14px; }
+
+  .divider { width: 2px; background: rgba(185,138,78,0.35); border-radius: 2px; }
+
+  .point {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .row.top .point { justify-content: flex-start; }
+  .row.bottom .point { justify-content: flex-end; }
+
+  .triangle {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .row.top .triangle { clip-path: polygon(0 0, 100% 0, 50% 92%); }
+  .row.bottom .triangle { clip-path: polygon(50% 8%, 100% 100%, 0 100%); }
+  .triangle.light { background: linear-gradient(180deg, var(--point-light), var(--point-light-shadow)); }
+  .triangle.dark { background: linear-gradient(180deg, var(--point-dark), var(--point-dark-shadow)); }
+
+  .idx {
+    position: relative;
+    z-index: 1;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: rgba(0,0,0,0.4);
+    padding: 3px 0;
+  }
+
+  .point.selectable::after,
+  .point.drop-target::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 6px;
+    box-shadow: 0 0 0 3px var(--brass-bright), 0 0 14px rgba(212,168,106,0.65);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .chips {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .row.bottom .chips { flex-direction: column-reverse; }
+
+  .chip {
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    margin-top: -9px;
+    border: 2px solid rgba(0,0,0,0.35);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.35);
+  }
+  .row.bottom .chip { margin-top: 0; margin-bottom: -9px; }
+  .chip:first-child { margin-top: 0; margin-bottom: 0; }
+
+  .chip.W { background: var(--ivory); color: var(--ink); }
+  .chip.B { background: var(--ink); color: var(--parchment-text); border-color: rgba(255,255,255,0.2); }
+  .chip.courier { box-shadow: 0 0 0 2px var(--brass-bright), 0 2px 3px rgba(0,0,0,0.35); }
+
+  .chip.draggable { cursor: grab; }
+  .chip.draggable:active { cursor: grabbing; }
+  .chip.dragging { opacity: 0.3; }
+
+  .tray {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(185,138,78,0.2);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .dice { display: flex; gap: 8px; }
+
+  .die {
+    width: 42px; height: 42px;
+    background: var(--ivory);
+    border-radius: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    padding: 6px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+    border: none;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+  }
+  .die:disabled { cursor: default; }
+  .die .pip { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); align-self: center; justify-self: center; visibility: hidden; }
+  .die.used { opacity: 0.25; box-shadow: none; }
+  .die.dead { box-shadow: 0 0 0 2px var(--danger); }
+  .die.selected { box-shadow: 0 0 0 2px var(--brass-bright), 0 0 10px rgba(212,168,106,0.7); transform: translateY(-2px); }
+  .die:not(:disabled):hover { transform: translateY(-2px); }
+
+  button.action {
+    font-family: "Inter", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    background: var(--brass);
+    color: var(--ink);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button.action:hover { background: var(--brass-bright); }
+  button.action:disabled { background: #5a5044; color: #8a8072; cursor: default; }
+
+  .hint { font-size: 0.78rem; color: var(--muted-text); flex-basis: 100%; }
+
+  .log {
+    margin-top: 12px;
+    max-height: 130px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+    color: var(--muted-text);
+    border-top: 1px solid rgba(185,138,78,0.2);
+    padding-top: 8px;
+    line-height: 1.6;
+  }
+  .log .entry.win { color: var(--success); font-weight: 600; }
+  .log .entry.forfeit { color: var(--danger); }
+  .log .entry.arrival { color: var(--brass-bright); }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: linear-gradient(180deg, #efe4c9, #e2d3a9);
+    color: var(--ink);
+    border-radius: 12px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 24px 26px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    border: 1px solid #b89a63;
+  }
+  .modal h2 { margin-top: 0; font-size: 1.3rem; }
+  .modal h3 { font-size: 0.95rem; margin: 18px 0 6px; color: #5a4326; }
+  .modal p, .modal li { font-size: 0.86rem; line-height: 1.5; }
+  .modal ul { margin: 4px 0; padding-left: 20px; }
+  .modal .close-row { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+  @media (max-width: 480px) {
+    .row { height: 92px; }
+    .chip { width: 21px; height: 21px; font-size: 0.6rem; margin-top: -7px; }
+    .row.bottom .chip { margin-bottom: -7px; }
+    header h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+<div class="table">
+  <header>
+    <div>
+      <h1>Jacquet</h1>
+      <div class="subtitle">Variante familiar &middot; 3 dados</div>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="rules-btn" title="Ver reglas" aria-label="Ver reglas">?</button>
+      <div id="turn-indicator">Turno de White</div>
+    </div>
+  </header>
+
+  <div class="status-strip">
+    <div class="status-card" id="status-white"><strong>White</strong><span class="courier-line"></span></div>
+    <div class="status-card" id="status-black"><strong>Black</strong><span class="courier-line"></span></div>
+  </div>
+
+  <div class="board">
+    <div class="row top" id="row-top"></div>
+    <div class="row bottom" id="row-bottom"></div>
+  </div>
+
+  <div class="tray">
+    <div class="dice" id="dice"></div>
+    <button class="action" id="roll-btn">Tirar dados</button>
+    <span class="hint" id="hint">Elegí "Tirar dados" para empezar el turno.</span>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div class="modal-overlay" id="rules-overlay">
+  <div class="modal">
+    <h2>Reglas — Jacquet, variante familiar</h2>
+    <p>24 puntos en 4 cuadrantes. Ambos jugadores mueven en la misma dirección (no en direcciones contrarias). Cada uno arranca con sus 15 fichas apiladas en su punto de partida, en esquinas opuestas.</p>
+
+    <h3>Dados</h3>
+    <ul>
+      <li>3 dados por turno.</li>
+      <li>Doble parcial (2 de 3 iguales, ej. 4-4-2): se juega 4,4,4,4,2 &mdash; 5 movimientos, orden libre.</li>
+      <li>Triple (3 iguales): se juega 6 veces y <strong>se repite el turno</strong>.</li>
+      <li>Dado sin movimiento legal: no termina el turno solo; seguís probando el resto. Lo que quede sin poder jugarse al final pasa al rival, que en su próximo turno lo juega directo (sin tirar). Si eso tampoco se puede jugar, se pierde para siempre.</li>
+    </ul>
+
+    <h3>Bloqueo</h3>
+    <ul>
+      <li>Basta <strong>1 sola ficha</strong> para bloquear un punto al rival.</li>
+      <li>No existe el hitting (captura): nunca se manda una ficha de vuelta.</li>
+    </ul>
+
+    <h3>El postillón</h3>
+    <ul>
+      <li>Es la <strong>primera ficha</strong> que sale del punto de partida.</li>
+      <li>Mientras no llegue a su cuadrante final, es la <strong>única ficha que se puede mover</strong>.</li>
+      <li>Al llegar, se libera el resto del ejército, que puede apilarse sobre él.</li>
+      <li>Si el rival ocupa los 6 puntos del cuadrante final y el postillón no puede entrar, <strong>el jugador pierde la partida</strong>.</li>
+    </ul>
+
+    <h3>Bear off y victoria</h3>
+    <ul>
+      <li>Solo se puede empezar a retirar fichas cuando las 15 están en el cuadrante final.</li>
+      <li>Gana quien retira sus 15 fichas primero.</li>
+    </ul>
+
+    <div class="close-row"><button class="action" id="rules-close">Cerrar</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const PATH_LEN = 24;
+  const HOME_START = 18;
+
+  function startOffset(player) { return player === "W" ? 0 : 12; }
+  function absoluteIndex(player, rel) { return (startOffset(player) + rel) % PATH_LEN; }
+  function relativeIndex(player, abs) {
+    return ((abs - startOffset(player)) % PATH_LEN + PATH_LEN) % PATH_LEN;
+  }
+  function otherPlayer(p) { return p === "W" ? "B" : "W"; }
+
+  const state = {
+    points: new Array(24).fill(null),
+    turn: "W",
+    courierArrived: { W: false, B: false },
+    borneOff: { W: 0, B: 0 },
+    pendingDice: { W: null, B: null },
+    dice: [],
+    diceUsed: [],
+    leftover: [],
+    repeatsTurn: false,
+    isInherited: false,
+    selectedDieIdx: null,
+    gameOver: false,
+  };
+
+
+
+  function newGame() {
+    state.points = new Array(24).fill(null);
+    state.points[absoluteIndex("W", 0)] = { owner: "W", count: 15 };
+    state.points[absoluteIndex("B", 0)] = { owner: "B", count: 15 };
+    state.turn = "W";
+    state.courierArrived = { W: false, B: false };
+    state.borneOff = { W: 0, B: 0 };
+    state.pendingDice = { W: null, B: null };
+    state.dice = [];
+    state.diceUsed = [];
+    state.leftover = [];
+    state.repeatsTurn = false;
+    state.isInherited = false;
+    state.selectedDieIdx = null;
+    state.gameOver = false;
+  }
+
+  function playerPositions(player) {
+    const positions = new Map();
+    for (let abs = 0; abs < 24; abs++) {
+      const pt = state.points[abs];
+      if (pt && pt.owner === player) positions.set(relativeIndex(player, abs), pt.count);
+    }
+    return positions;
+  }
+
+  function isBlockedFor(abs, player) {
+    const pt = state.points[abs];
+    return !!pt && pt.owner !== player;
+  }
+
+  function canBearOff(player) {
+    const positions = playerPositions(player);
+    for (const rel of positions.keys()) if (rel < HOME_START) return false;
+    return true;
+  }
+
+  function legalMovesForDie(player, die) {
+    const positions = playerPositions(player);
+    const arrived = state.courierArrived[player];
+
+    if (!arrived) {
+      let from = 0;
+      for (const rel of positions.keys()) if (rel > 0 && rel > from) from = rel;
+      const to = from + die;
+      if (to > 23) return [];
+      if (isBlockedFor(absoluteIndex(player, to), player)) return [];
+      return [{ kind: "board", from, to }];
+    }
+
+    const bearOffOk = canBearOff(player);
+    const moves = [];
+    for (const [from, count] of positions) {
+      if (count <= 0) continue;
+      const to = from + die;
+      if (to <= 23) {
+        if (!isBlockedFor(absoluteIndex(player, to), player)) moves.push({ kind: "board", from, to });
+        continue;
+      }
+      if (!bearOffOk) continue;
+      if (to === 24) {
+        moves.push({ kind: "bearoff", from });
+      } else {
+        let fartherExists = false;
+        for (const rel of positions.keys()) if (rel < from && rel >= HOME_START) { fartherExists = true; break; }
+        if (!fartherExists) moves.push({ kind: "bearoff", from });
+      }
+    }
+    return moves;
+  }
+
+  function isCourierTrapped(player) {
+    if (state.courierArrived[player]) return false;
+    const opponent = otherPlayer(player);
+    for (let rel = HOME_START; rel < PATH_LEN; rel++) {
+      const pt = state.points[absoluteIndex(player, rel)];
+      if (!pt || pt.owner !== opponent) return false;
+    }
+    return true;
+  }
+
+  function removePiece(player, rel) {
+    const abs = absoluteIndex(player, rel);
+    const pt = state.points[abs];
+    if (!pt) return;
+    if (pt.count > 1) pt.count -= 1; else state.points[abs] = null;
+  }
+
+  function addPiece(player, rel) {
+    const abs = absoluteIndex(player, rel);
+    const pt = state.points[abs];
+    if (pt && pt.owner === player) pt.count += 1;
+    else state.points[abs] = { owner: player, count: 1 };
+  }
+
+  function applyMove(player, move) {
+    if (move.kind === "board") {
+      removePiece(player, move.from);
+      addPiece(player, move.to);
+      if (!state.courierArrived[player] && move.to >= HOME_START) {
+        state.courierArrived[player] = true;
+        return true;
+      }
+      return false;
+    }
+    removePiece(player, move.from);
+    state.borneOff[player] += 1;
+    return false;
+  }
+
+  function rollThreeDice() { return [1, 2, 3].map(() => 1 + Math.floor(Math.random() * 6)); }
+
+  function expandRoll(dice) {
+    const [a, b, c] = dice;
+    if (a === b && b === c) return { moves: new Array(6).fill(a), repeatsTurn: true };
+    if (a === b || a === c || b === c) {
+      let doubled, single;
+      if (a === b) { doubled = a; single = c; }
+      else if (a === c) { doubled = a; single = b; }
+      else { doubled = b; single = a; }
+      return { moves: [doubled, doubled, doubled, doubled, single], repeatsTurn: false };
+    }
+    return { moves: [a, b, c], repeatsTurn: false };
+  }
+
+  const topRow = document.getElementById("row-top");
+  const bottomRow = document.getElementById("row-bottom");
+  const diceEl = document.getElementById("dice");
+  const rollBtn = document.getElementById("roll-btn");
+  const hintEl = document.getElementById("hint");
+  const turnIndicator = document.getElementById("turn-indicator");
+  const logEl = document.getElementById("log");
+  const statusW = document.getElementById("status-white").querySelector(".courier-line");
+  const statusB = document.getElementById("status-black").querySelector(".courier-line");
+  const rulesBtn = document.getElementById("rules-btn");
+  const rulesOverlay = document.getElementById("rules-overlay");
+  const rulesClose = document.getElementById("rules-close");
+
+  const TOP_ABS = [12, 13, 14, 15, 16, 17, null, 18, 19, 20, 21, 22, 23];
+  const BOTTOM_ABS = [11, 10, 9, 8, 7, 6, null, 5, 4, 3, 2, 1, 0];
+
+  function courierRelFor(player) {
+    if (state.courierArrived[player]) return null;
+    const positions = playerPositions(player);
+    let from = 0;
+    for (const rel of positions.keys()) if (rel > 0 && rel > from) from = rel;
+    return from;
+  }
+
+  function fullName(p) { return p === "W" ? "White" : "Black"; }
+
+  function buildRow(container, absList, isTop) {
+    container.innerHTML = "";
+    absList.forEach((abs) => {
+      if (abs === null) {
+        const div = document.createElement("div");
+        div.className = "divider";
+        container.appendChild(div);
+        return;
+      }
+      const pointEl = document.createElement("div");
+      pointEl.className = "point";
+      pointEl.dataset.abs = String(abs);
+
+      const triangle = document.createElement("div");
+      triangle.className = "triangle " + (abs % 2 === 0 ? "light" : "dark");
+      pointEl.appendChild(triangle);
+
+      const idxLabel = document.createElement("div");
+      idxLabel.className = "idx";
+      idxLabel.textContent = String(abs);
+
+      const chips = document.createElement("div");
+      chips.className = "chips";
+
+      const pt = state.points[abs];
+      if (pt) {
+        const courierW = courierRelFor("W");
+        const courierB = courierRelFor("B");
+        const relForOwner = relativeIndex(pt.owner, abs);
+        const isCourierChip =
+          (pt.owner === "W" && courierW === relForOwner) ||
+          (pt.owner === "B" && courierB === relForOwner);
+        const MAX_VISIBLE = 4;
+        const visibleCount = Math.min(pt.count, MAX_VISIBLE);
+        for (let i = 0; i < visibleCount; i++) {
+          const chip = document.createElement("div");
+          const isTop = i === visibleCount - 1;
+          chip.className = "chip " + pt.owner + (isCourierChip && isTop ? " courier" : "");
+          chip.textContent = pt.count > 1 && isTop ? String(pt.count) : "";
+          chips.appendChild(chip);
+        }
+      }
+
+      if (isTop) { pointEl.appendChild(idxLabel); pointEl.appendChild(chips); }
+      else { pointEl.appendChild(chips); pointEl.appendChild(idxLabel); }
+
+      container.appendChild(pointEl);
+    });
+  }
+
+  function renderBoard() {
+    buildRow(topRow, TOP_ABS, true);
+    buildRow(bottomRow, BOTTOM_ABS, false);
+  }
+
+  function renderStatus() {
+    turnIndicator.textContent = state.gameOver ? "Partida terminada" : "Turno de " + fullName(state.turn);
+    [["W", statusW], ["B", statusB]].forEach(([p, el]) => {
+      const arrived = state.courierArrived[p];
+      const pendingStr = state.pendingDice[p]
+        ? " &middot; hereda: [" + state.pendingDice[p].join(", ") + "]"
+        : "";
+      el.innerHTML =
+        '<span class="' + (arrived ? "courier-arrived" : "courier-pending") + '">postillón ' +
+        (arrived ? "llegó" : "en camino") + "</span> &middot; fuera: " + state.borneOff[p] + "/15" + pendingStr;
+    });
+  }
+
+  function renderDice() {
+    diceEl.innerHTML = "";
+    state.dice.forEach((value, i) => {
+      const die = document.createElement("button");
+      die.className = "die";
+      die.disabled = state.diceUsed[i] || state.gameOver;
+      if (state.diceUsed[i]) die.classList.add("used");
+      if (i === state.selectedDieIdx) die.classList.add("selected");
+      if (!state.diceUsed[i] && legalMovesForDie(state.turn, value).length === 0) die.classList.add("dead");
+      die.appendChild(pipGrid(value));
+      die.addEventListener("click", () => onDieClick(i));
+      diceEl.appendChild(die);
+    });
+  }
+
+  const PIP_LAYOUTS = {
+    1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8],
+    5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8],
+  };
+
+  function pipGrid(value) {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < 9; i++) {
+      const pip = document.createElement("div");
+      pip.className = "pip";
+      if (PIP_LAYOUTS[value].includes(i)) pip.style.visibility = "visible";
+      frag.appendChild(pip);
+    }
+    return frag;
+  }
+
+  function log(text, cls) {
+    const entry = document.createElement("div");
+    entry.className = "entry" + (cls ? " " + cls : "");
+    entry.textContent = text;
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function clearHighlights() {
+    document.querySelectorAll(".point.selectable, .point.drop-target").forEach((el) => {
+      el.classList.remove("selectable");
+      el.classList.remove("drop-target");
+      el.onclick = null;
+      el.ondragover = null;
+      el.ondragleave = null;
+      el.ondrop = null;
+    });
+  }
+
+  function startTurn() {
+    if (state.gameOver) return;
+
+    if (isCourierTrapped(state.turn)) {
+      const winner = otherPlayer(state.turn);
+      state.gameOver = true;
+      log("El postillón de " + fullName(state.turn) + " quedó atrapado. ¡" + fullName(winner) + " gana!", "win");
+      hintEl.textContent = fullName(winner) + " gana la partida.";
+      rollBtn.disabled = true;
+      renderAll();
+      return;
+    }
+
+    state.selectedDieIdx = null;
+    state.leftover = [];
+
+    const pending = state.pendingDice[state.turn];
+    if (pending) {
+      state.pendingDice[state.turn] = null;
+      state.dice = pending.slice();
+      state.diceUsed = pending.map(() => false);
+      state.repeatsTurn = false;
+      state.isInherited = true;
+      rollBtn.disabled = true;
+      log(fullName(state.turn) + " heredó estos dados del rival (no tira, los juega directo): [" + pending.join(", ") + "]");
+      if (autoResolveIfAllDead()) return;
+      hintEl.textContent = "Elegí qué dado jugar (heredado; rojo = sin movimiento).";
+      renderAll();
+      return;
+    }
+
+    state.dice = [];
+    state.diceUsed = [];
+    state.isInherited = false;
+    rollBtn.disabled = false;
+    hintEl.textContent = 'Turno de ' + fullName(state.turn) + '. Elegí "Tirar dados".';
+    renderAll();
+  }
+
+  function allRemainingDiceDead() {
+    for (let i = 0; i < state.dice.length; i++) {
+      if (state.diceUsed[i]) continue;
+      if (legalMovesForDie(state.turn, state.dice[i]).length > 0) return false;
+    }
+    return true;
+  }
+
+  // Si ningún dado sin jugar tiene movimiento legal, no hay nada que
+  // elegir: se marcan todos como no jugados de una y se resuelve el fin
+  // de turno (lo que no se jugó pasa al rival o se pierde, según
+  // corresponda). Devuelve true si efectivamente resolvió el turno.
+  function autoResolveIfAllDead() {
+    if (state.gameOver) return false;
+    if (state.dice.length === 0) return false;
+    if (state.diceUsed.every(Boolean)) return false;
+    if (!allRemainingDiceDead()) return false;
+
+    state.dice.forEach((v, i) => {
+      if (!state.diceUsed[i]) {
+        state.diceUsed[i] = true;
+        state.leftover.push(v);
+      }
+    });
+    log("Ningún dado restante tiene movimiento legal por ahora.", "forfeit");
+    resolveEndOfTurn();
+    return true;
+  }
+
+  function onRoll() {
+    const rolled = rollThreeDice();
+    const expanded = expandRoll(rolled);
+    state.dice = expanded.moves;
+    state.diceUsed = expanded.moves.map(() => false);
+    state.repeatsTurn = expanded.repeatsTurn;
+    state.isInherited = false;
+    state.selectedDieIdx = null;
+    rollBtn.disabled = true;
+    log("Dados: [" + rolled.join(", ") + "]" + (expanded.repeatsTurn ? " — triple, se repite el turno si se juegan todos" : ""));
+
+    if (autoResolveIfAllDead()) return;
+
+    hintEl.textContent = "Elegí qué dado jugar (rojo = sin movimiento).";
+    renderAll();
+  }
+
+  function onDieClick(idx) {
+    if (state.diceUsed[idx] || state.gameOver) return;
+    const die = state.dice[idx];
+    const legal = legalMovesForDie(state.turn, die);
+
+    if (legal.length === 0) {
+      // No se pierde ni se consume: puede volverse jugable más adelante en
+      // esta misma tirada, si otro movimiento cambia el tablero. Solo se
+      // da por perdido cuando TODOS los dados restantes están en esta
+      // situación a la vez (ver autoResolveIfAllDead).
+      hintEl.textContent = "El dado " + die + " no tiene movimiento ahora mismo. Probá con otro dado.";
+      return;
+    }
+
+    if (legal.length === 1) {
+      commitMove(idx, legal[0]);
+      return;
+    }
+
+    state.selectedDieIdx = idx;
+    renderDice();
+    clearHighlights();
+    legal.forEach((mv) => setupOriginPoint(idx, mv));
+    hintEl.textContent = "Tocá la ficha que querés mover con el dado " + die + ".";
+  }
+
+  // Habilita un punto de origen como clickeable para un movimiento puntual.
+  function setupOriginPoint(dieIdx, move) {
+    const player = state.turn;
+    const fromAbs = absoluteIndex(player, move.from);
+    const originEl = document.querySelector('.point[data-abs="' + fromAbs + '"]');
+    if (!originEl) return;
+
+    originEl.classList.add("selectable");
+    originEl.onclick = () => { clearHighlights(); commitMove(dieIdx, move); };
+  }
+
+  function commitMove(dieIdx, move) {
+    const player = state.turn;
+    const justArrived = applyMove(player, move);
+    state.diceUsed[dieIdx] = true;
+    state.selectedDieIdx = null;
+
+    const desc = move.kind === "board" ? (move.from + " \u2192 " + move.to) : (move.from + " \u2192 fuera (bear off)");
+    log(fullName(player) + ": " + desc);
+    if (justArrived) log("¡El postillón de " + fullName(player) + " llegó a destino! Se libera el resto del ejército.", "arrival");
+
+    if (state.borneOff[player] === 15) {
+      state.gameOver = true;
+      log("¡" + fullName(player) + " gana la partida!", "win");
+      hintEl.textContent = fullName(player) + " gana la partida.";
+      rollBtn.disabled = true;
+      renderAll();
+      return;
+    }
+
+    if (state.diceUsed.every(Boolean)) { resolveEndOfTurn(); return; }
+
+    if (autoResolveIfAllDead()) return;
+
+    hintEl.textContent = "Elegí el siguiente dado a jugar.";
+    renderAll();
+  }
+
+  // Termina el turno actual y decide qué sigue, según lo que haya quedado
+  // sin jugar (state.leftover) y si esta tirada era heredada o propia.
+  function resolveEndOfTurn() {
+    const current = state.turn;
+    const opponent = otherPlayer(current);
+
+    if (state.leftover.length === 0) {
+      if (!state.isInherited && state.repeatsTurn) {
+        log("Triple completo: " + fullName(current) + " vuelve a tirar.");
+        startTurn();
+        return;
+      }
+      state.turn = opponent;
+      startTurn();
+      return;
+    }
+
+    if (state.isInherited) {
+      log(
+        "Estos dados heredados tampoco se pudieron jugar y se pierden para siempre: [" +
+        state.leftover.join(", ") + "]",
+        "forfeit"
+      );
+    } else {
+      log(
+        fullName(opponent) + " hereda estos dados para su próximo turno (no tira, los juega directo): [" +
+        state.leftover.join(", ") + "]"
+      );
+      state.pendingDice[opponent] = state.leftover.slice();
+    }
+
+    state.turn = opponent;
+    startTurn();
+  }
+
+  function renderAll() { renderBoard(); renderStatus(); renderDice(); }
+
+  rollBtn.addEventListener("click", onRoll);
+  rulesBtn.addEventListener("click", () => rulesOverlay.classList.add("open"));
+  rulesClose.addEventListener("click", () => rulesOverlay.classList.remove("open"));
+  rulesOverlay.addEventListener("click", (e) => { if (e.target === rulesOverlay) rulesOverlay.classList.remove("open"); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") rulesOverlay.classList.remove("open"); });
+
+  newGame();
+  startTurn();
+})();
+</script>
+</body>
+</html>

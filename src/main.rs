@@ -91,13 +91,12 @@ fn main() {
             repeats_turn_from_roll = expanded.repeats_turn;
         }
 
-        let order = pick_order(&dice_to_play);
-
         let log = play_turn(
             &mut state,
-            &order,
+            &dice_to_play,
             repeats_turn_from_roll,
             is_inherited,
+            pick_die,
             pick_move,
             |outcome| match outcome {
                 DieOutcome::Applied(mv, courier_just_arrived) => {
@@ -107,7 +106,7 @@ fn main() {
                     }
                 }
                 DieOutcome::Unplayable(die) => {
-                    println!("  -> dado {} sin movimiento legal por ahora", die)
+                    println!("  -> dado {} quedó definitivamente sin jugar", die)
                 }
             },
         );
@@ -203,52 +202,47 @@ fn print_board(state: &GameState) {
     }
 }
 
-/// Deja que el jugador elija en qué orden intentar los dados (RULES.md
-/// sección 3: el orden es libre). Si aprieta Enter sin escribir nada, usa
-/// el orden en que salieron los dados.
-fn pick_order(rolled: &[u8]) -> Vec<u8> {
-    println!(
-        "  Orden de dados [{}] (Enter para dejarlo así, o escribilos separados por espacio en el orden que quieras, ej: {} {}):",
-        rolled
-            .iter()
-            .map(|d| d.to_string())
-            .collect::<Vec<_>>()
-            .join(" "),
-        rolled.get(1).copied().unwrap_or(rolled[0]),
-        rolled[0]
-    );
+/// Le muestra al jugador los dados que todavía quedan por intentar, marca
+/// cuáles no tienen movimiento *en este momento*, y le pide elegir uno
+/// jugable. `play_turn` solo llama a esto cuando hay al menos uno
+/// disponible, así que reintenta hasta que la elección sea válida.
+fn pick_die(state: &GameState, remaining: &[u8]) -> usize {
+    let player = state.turn;
+    let courier_arrived = state.player_state(player).courier.arrived;
+
+    println!("  Dados que quedan: {:?}", remaining);
+    for (i, &d) in remaining.iter().enumerate() {
+        let legal = jacquet::rules::legal_moves_for_die(&state.board, player, d, courier_arrived);
+        if legal.is_empty() {
+            println!("    [{}] dado {} — sin movimiento ahora mismo", i, d);
+        } else {
+            println!("    [{}] dado {}", i, d);
+        }
+    }
 
     loop {
-        print!("  > ");
+        print!("  > elegí qué dado intentar: ");
         io::stdout().flush().ok();
 
         let mut input = String::new();
         if io::stdin().read_line(&mut input).is_err() {
-            return rolled.to_vec();
+            continue;
         }
 
-        let trimmed = input.trim();
-        if trimmed.is_empty() {
-            return rolled.to_vec();
+        if let Ok(idx) = input.trim().parse::<usize>() {
+            if idx < remaining.len() {
+                let legal =
+                    jacquet::rules::legal_moves_for_die(&state.board, player, remaining[idx], courier_arrived);
+                if !legal.is_empty() {
+                    return idx;
+                }
+                println!("  Ese dado no tiene movimiento ahora, elegí otro.");
+                continue;
+            }
         }
 
-        let parsed: Result<Vec<u8>, _> = trimmed.split_whitespace().map(|s| s.parse()).collect();
-        match parsed {
-            Ok(order) if same_multiset(&order, rolled) => return order,
-            _ => println!(
-                "  Eso no es un reordenamiento válido de {:?}, probá de nuevo.",
-                rolled
-            ),
-        }
+        println!("  Opción inválida, probá de nuevo.");
     }
-}
-
-fn same_multiset(a: &[u8], b: &[u8]) -> bool {
-    let mut a = a.to_vec();
-    let mut b = b.to_vec();
-    a.sort_unstable();
-    b.sort_unstable();
-    a == b
 }
 
 /// Si hay una sola opción, la toma sola. Si hay varias (más de una ficha

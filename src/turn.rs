@@ -1,17 +1,22 @@
 //! Aplica un turno completo y resuelve el flujo: quién juega a
 //! continuación, y con qué dados.
 //!
-//! Regla clave (confirmada, distinta de lo que se había armado antes):
-//! un dado sin movimiento legal **no termina el turno** ni se pierde sin
-//! más — el jugador sigue probando el resto de sus dados en el orden que
-//! elija. Recién al terminar de intentarlos todos, los que quedaron sin
-//! poder jugarse:
+//! Regla clave: un dado sin movimiento legal **no se pierde en el
+//! momento** — sigue disponible para reintentarlo más adelante en el
+//! mismo turno, después de que otro movimiento cambie el tablero. Recién
+//! cuando **ninguno** de los dados que quedan sin jugar tiene movimiento
+//! posible, esos se dan por definitivamente sin jugar. En ese punto:
 //!
 //! - si esta tirada era **propia** (recién tirada), esos dados **pasan al
-//!   rival**: en su próximo turno, el rival los juega directamente en vez
-//!   de tirar los suyos (`PlayerState.pending_dice`).
+//!   rival**: en su próximo turno los juega directo en vez de tirar los
+//!   suyos (`PlayerState.pending_dice`).
 //! - si esta tirada ya era **heredada** del rival, lo que no se puede
 //!   jugar se **pierde para siempre** — no rebota de nuevo.
+//!
+//! Por eso el llamador no elige un orden fijo de antemano: en cada paso,
+//! `choose_die` recibe el estado actual y los dados que quedan, y decide
+//! cuál intentar a continuación (debe ser uno con movimiento legal en ese
+//! momento — ver su documentación).
 //!
 //! El postillón sigue siendo la única ficha jugable hasta que llega a
 //! destino, sin importar de dónde vengan los dados de este turno.
@@ -41,9 +46,9 @@ pub enum DieOutcome {
     /// El movimiento aplicado, y si ESTE movimiento fue el que hizo que
     /// el postillón llegara a su cuadrante final (para poder avisarlo).
     Applied(Move, bool),
-    /// El dado no tenía movimiento legal en este punto de la secuencia.
-    /// No termina el turno: ver `TurnLog.leftover_dice` para qué pasa con
-    /// él al final.
+    /// El dado quedó definitivamente sin jugar: en el momento en que se
+    /// resolvió, ningún dado restante (incluido este) tenía movimiento
+    /// legal. Ver `TurnLog.leftover_dice` para qué pasa con él.
     Unplayable(u8),
 }
 
@@ -58,32 +63,38 @@ pub struct TurnLog {
     pub repeats_turn: bool,
     /// Si alguien ganó la partida durante este turno.
     pub winner: Option<Player>,
-    /// Dados que quedaron sin jugar al terminar. Si esta tirada era propia
-    /// (`leftover_discarded == false`), estos ya quedaron guardados en
-    /// `pending_dice` del rival. Si esta tirada era heredada
-    /// (`leftover_discarded == true`), estos se perdieron para siempre.
+    /// Dados que quedaron definitivamente sin jugar. Si esta tirada era
+    /// propia (`leftover_discarded == false`), ya quedaron guardados en
+    /// `pending_dice` del rival. Si era heredada (`leftover_discarded ==
+    /// true`), se perdieron para siempre.
     pub leftover_dice: Vec<u8>,
     pub leftover_discarded: bool,
 }
 
 /// Aplica un turno sobre `state`.
 ///
-/// `order` es la secuencia de valores de dado que el jugador quiere
-/// intentar, en el orden que elija (una permutación de los dados de este
-/// turno — expandidos si es tirada propia, o tal cual si son heredados).
+/// `dice` es el multiset completo a jugar este turno (los movimientos ya
+/// expandidos de una tirada propia, o los dados heredados tal cual).
 /// `repeats_turn_from_roll` solo importa cuando `is_inherited` es false:
 /// indica si la tirada original fue un triple. `is_inherited` indica si
-/// estos dados vienen de `pending_dice` del rival en vez de una tirada
-/// propia — cambia qué pasa con lo que no se puede jugar (ver arriba).
-/// `choose` decide, cuando un dado admite más de un movimiento legal,
+/// `dice` viene de `pending_dice` del rival en vez de una tirada propia.
+///
+/// `choose_die(state, remaining)` se llama en cada paso, con los dados que
+/// todavía no se jugaron; SIEMPRE hay al menos uno con movimiento legal en
+/// ese momento (si no lo hubiera, el turno ya habría terminado sin volver
+/// a preguntar). Debe devolver el índice, dentro de `remaining`, de uno de
+/// esos dados jugables — no hace falta que sea el único, solo uno válido.
+///
+/// `choose_move` decide, cuando un dado admite más de un movimiento legal,
 /// cuál aplicar. `on_outcome` se llama en el momento en que se resuelve
 /// cada dado, para que la UI lo muestre en vivo.
 pub fn play_turn(
     state: &mut GameState,
-    order: &[u8],
+    dice: &[u8],
     repeats_turn_from_roll: bool,
     is_inherited: bool,
-    mut choose: impl FnMut(&[Move]) -> Move,
+    mut choose_die: impl FnMut(&GameState, &[u8]) -> usize,
+    mut choose_move: impl FnMut(&[Move]) -> Move,
     mut on_outcome: impl FnMut(DieOutcome),
 ) -> TurnLog {
     let player = state.turn;
@@ -108,22 +119,45 @@ pub fn play_turn(
         };
     }
 
+    let mut remaining: Vec<u8> = dice.to_vec();
     let mut outcomes = Vec::new();
-    let mut leftover = Vec::new();
 
-    for &die in order {
+    loop {
+        if remaining.is_empty() {
+            break;
+        }
+
         let courier_arrived = state.player_state(player).courier.arrived;
+        let any_legal = remaining
+            .iter()
+            .any(|&d| !legal_moves_for_die(&state.board, player, d, courier_arrived).is_empty());
+
+        if !any_legal {
+            for &d in &remaining {
+                let outcome = DieOutcome::Unplayable(d);
+                on_outcome(outcome);
+                outcomes.push(outcome);
+            }
+            break;
+        }
+
+        let pick = choose_die(state, &remaining);
+        let die = remaining[pick];
         let legal = legal_moves_for_die(&state.board, player, die, courier_arrived);
 
         if legal.is_empty() {
+            // choose_die debía elegir uno jugable; si igual devolvió uno
+            // sin movimiento, lo sacamos de la ronda para no colgar el
+            // loop, sin tratarlo como definitivamente perdido del grupo.
+            remaining.remove(pick);
             let outcome = DieOutcome::Unplayable(die);
             on_outcome(outcome);
             outcomes.push(outcome);
-            leftover.push(die);
             continue;
         }
 
-        let mv = choose(&legal);
+        remaining.remove(pick);
+        let mv = choose_move(&legal);
         let courier_just_arrived = apply_move(state, player, mv);
         let outcome = DieOutcome::Applied(mv, courier_just_arrived);
         on_outcome(outcome);
@@ -140,6 +174,14 @@ pub fn play_turn(
             };
         }
     }
+
+    let leftover: Vec<u8> = outcomes
+        .iter()
+        .filter_map(|o| match o {
+            DieOutcome::Unplayable(d) => Some(*d),
+            _ => None,
+        })
+        .collect();
 
     let opponent = player.opponent();
 
