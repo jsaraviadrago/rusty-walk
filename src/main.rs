@@ -60,35 +60,72 @@ fn main() {
             break;
         }
 
-        let dice = [rng.die(), rng.die(), rng.die()];
-        println!("Dados: {:?}", dice);
+        let dice_to_play: Vec<u8>;
+        let is_inherited: bool;
+        let repeats_turn_from_roll: bool;
 
-        let roll = Roll { dice };
-        let expanded = roll.expand();
-        println!(
-            "Movimientos a jugar: {:?}{}",
-            expanded.moves,
-            if expanded.repeats_turn {
-                " (triple: se repite el turno si se juegan todos)"
-            } else {
-                ""
-            }
-        );
+        if let Some(pending) = state.player_state(state.turn).pending_dice.clone() {
+            println!(
+                "{:?} heredó estos dados del rival (no tira, los juega directo): {:?}",
+                state.turn, pending
+            );
+            dice_to_play = pending;
+            is_inherited = true;
+            repeats_turn_from_roll = false;
+        } else {
+            let dice = [rng.die(), rng.die(), rng.die()];
+            println!("Dados: {:?}", dice);
+            let roll = Roll { dice };
+            let expanded = roll.expand();
+            println!(
+                "Movimientos a jugar: {:?}{}",
+                expanded.moves,
+                if expanded.repeats_turn {
+                    " (triple: se repite el turno si se juegan todos)"
+                } else {
+                    ""
+                }
+            );
+            dice_to_play = expanded.moves;
+            is_inherited = false;
+            repeats_turn_from_roll = expanded.repeats_turn;
+        }
 
-        let order = pick_order(&expanded.moves);
+        let order = pick_order(&dice_to_play);
 
         let log = play_turn(
             &mut state,
             &order,
-            expanded.repeats_turn,
+            repeats_turn_from_roll,
+            is_inherited,
             pick_move,
             |outcome| match outcome {
-                DieOutcome::Applied(mv) => println!("  -> {:?}", mv),
-                DieOutcome::Forfeited(die) => {
-                    println!("  -> dado {} sin movimiento legal: se pierde el turno", die)
+                DieOutcome::Applied(mv, courier_just_arrived) => {
+                    println!("  -> {:?}", mv);
+                    if courier_just_arrived {
+                        println!("     ¡El postillón llegó a destino! Se libera el resto del ejército.");
+                    }
+                }
+                DieOutcome::Unplayable(die) => {
+                    println!("  -> dado {} sin movimiento legal por ahora", die)
                 }
             },
         );
+
+        if !log.leftover_dice.is_empty() {
+            if log.leftover_discarded {
+                println!(
+                    "  Estos dados heredados tampoco se pudieron jugar y se pierden para siempre: {:?}",
+                    log.leftover_dice
+                );
+            } else {
+                println!(
+                    "  {:?} no pudo jugar estos dados, quedan para el rival: {:?}",
+                    state.turn.opponent(),
+                    log.leftover_dice
+                );
+            }
+        }
 
         println!("\nTablero después de la jugada:");
         print_board(&state);
@@ -104,24 +141,39 @@ fn main() {
     }
 }
 
-/// Imprime el tablero de dos formas: por punto absoluto (lo que realmente
-/// hay en cada una de las 24 casillas compartidas) y por posición relativa
-/// de cada jugador (más fácil para seguir el avance del postillón y del
-/// resto de las fichas a lo largo de su propio camino).
+/// Imprime el tablero como 4 cuadrantes de 6 puntos, tal como está descrito
+/// en RULES.md sección 2 — mucho más fácil de leer que una fila plana de
+/// 24 números. Debajo, el resumen por jugador en posiciones relativas
+/// (para seguir el avance del postillón y el resto del ejército).
 fn print_board(state: &GameState) {
-    println!("  Tablero (punto absoluto: dueño×cantidad):");
-    print!("   ");
-    for idx in 0..24usize {
+    let cell = |idx: usize| -> String {
         match state.board.points[idx] {
-            Some((owner, count)) => {
-                let letter = match owner {
-                    Player::White => 'W',
-                    Player::Black => 'B',
-                };
-                print!(" {:>2}:{}{}", idx, letter, count);
-            }
-            None => print!(" {:>2}:.", idx),
+            Some((Player::White, count)) => format!("W{}", count),
+            Some((Player::Black, count)) => format!("B{}", count),
+            None => ".".to_string(),
         }
+    };
+
+    let numbers_row = |range: std::ops::Range<usize>| -> String {
+        range.map(|i| format!("{:>3}", i)).collect::<Vec<_>>().join(" ")
+    };
+    let pieces_row = |range: std::ops::Range<usize>| -> String {
+        range.map(cell).map(|c| format!("{:>3}", c)).collect::<Vec<_>>().join(" ")
+    };
+
+    let quadrant_labels = [
+        "Cuadrante 1 (salida White)",
+        "Cuadrante 2",
+        "Cuadrante 3 (salida Black)",
+        "Cuadrante 4 (llegada White)",
+    ];
+    let ranges = [0..6usize, 6..12, 12..18, 18..24];
+
+    println!();
+    for (label, range) in quadrant_labels.iter().zip(ranges.iter()) {
+        println!("  {}", label);
+        println!("    {}", numbers_row(range.clone()));
+        println!("    {}", pieces_row(range.clone()));
     }
     println!();
 
@@ -134,7 +186,7 @@ fn print_board(state: &GameState) {
             .collect::<Vec<_>>()
             .join(", ");
         println!(
-            "  {:?}: postillón {} | fuera del tablero: {}/15 | posiciones relativas: [{}]",
+            "  {:?}: postillón {} | fuera del tablero: {}/15 | posiciones relativas: [{}]{}",
             player,
             if ps.courier.arrived {
                 "llegó"
@@ -142,7 +194,11 @@ fn print_board(state: &GameState) {
                 "en camino"
             },
             ps.borne_off,
-            positions_str
+            positions_str,
+            match &ps.pending_dice {
+                Some(d) => format!(" | dados heredados pendientes: {:?}", d),
+                None => String::new(),
+            }
         );
     }
 }
@@ -197,12 +253,14 @@ fn same_multiset(a: &[u8], b: &[u8]) -> bool {
 
 /// Si hay una sola opción, la toma sola. Si hay varias (más de una ficha
 /// puede jugar el mismo dado), le pregunta al jugador humano por consola.
+/// Acepta tanto el índice entre corchetes como la posición `from` de la
+/// jugada (lo que sea más natural escribir).
 fn pick_move(legal: &[Move]) -> Move {
     if legal.len() == 1 {
         return legal[0];
     }
 
-    println!("  Elegí un movimiento:");
+    println!("  Elegí un movimiento (por índice [N] o escribiendo la posición 'from'):");
     for (i, mv) in legal.iter().enumerate() {
         println!("    [{}] {:?}", i, mv);
     }
@@ -216,12 +274,25 @@ fn pick_move(legal: &[Move]) -> Move {
             continue;
         }
 
-        if let Ok(idx) = input.trim().parse::<usize>() {
-            if idx < legal.len() {
-                return legal[idx];
+        if let Ok(n) = input.trim().parse::<usize>() {
+            // Primero probamos como índice de la lista.
+            if let Some(&mv) = legal.get(n) {
+                return mv;
+            }
+            // Si no es un índice válido, probamos como posición `from`.
+            let n = n as u8;
+            if let Some(&mv) = legal.iter().find(|mv| move_from(mv) == n) {
+                return mv;
             }
         }
 
         println!("  Opción inválida, probá de nuevo.");
+    }
+}
+
+fn move_from(mv: &Move) -> u8 {
+    match mv {
+        Move::OnBoard { from, .. } => *from,
+        Move::BearOff { from } => *from,
     }
 }

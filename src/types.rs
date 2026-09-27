@@ -55,6 +55,12 @@ pub struct PlayerState {
     pub courier: Courier,
     /// Fichas ya retiradas del tablero (bear off). 0..=15.
     pub borne_off: u8,
+    /// Dados heredados del rival (los que el rival no pudo jugar en su
+    /// turno anterior): si hay algo acá, este jugador los juega
+    /// directamente en su próximo turno en vez de tirar los suyos
+    /// (RULES.md sección 3). Lo que de estos tampoco pueda jugar se
+    /// pierde para siempre, sin rebotar de nuevo.
+    pub pending_dice: Option<Vec<u8>>,
 }
 
 /// Los 3 dados crudos de una tirada.
@@ -131,19 +137,5 @@ impl GameState {
             Player::Black => &self.black,
         };
         state.borne_off == 15
-    }
-
-    /// true si el postillón de `player` quedó atrapado sin poder entrar a
-    /// su cuadrante final: los 6 puntos de esa zona están todos ocupados
-    /// por el rival (RULES.md, sección 6). El llamador es responsable de
-    /// además verificar que ningún dado disponible destrabe al postillón
-    /// antes de declarar la derrota.
-    pub fn is_courier_trapped(&self, player: Player, home_quadrant: &[usize; 6]) -> bool {
-        let opponent = player.opponent();
-        home_quadrant
-            .iter()
-            .all(|&idx| self.board.is_blocked_for(idx, player) && {
-                matches!(self.board.points[idx], Some((owner, _)) if owner == opponent)
-            })
     }
 }
