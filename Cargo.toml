@@ -6,3 +6,9 @@ description = "Motor del juego de mesa Jacquet (variación familiar del backgamm
 authors = ["Juan Carlos <jsaraviadrago>"]
 
 [dependencies]
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+tower-http = { version = "0.5", features = ["cors"] }
