@@ -13,13 +13,14 @@
 //! - si esta tirada ya era **heredada** del rival, lo que no se puede
 //!   jugar se **pierde para siempre** — no rebota de nuevo.
 //!
-//! Por eso el llamador no elige un orden fijo de antemano: en cada paso,
-//! `choose_die` recibe el estado actual y los dados que quedan, y decide
-//! cuál intentar a continuación (debe ser uno con movimiento legal en ese
-//! momento — ver su documentación).
-//!
-//! El postillón sigue siendo la única ficha jugable hasta que llega a
-//! destino, sin importar de dónde vengan los dados de este turno.
+//! `play_turn` es la versión "todo de una" pensada para un loop
+//! bloqueante como el CLI, donde se le puede preguntar algo al jugador y
+//! obtener la respuesta al instante. Para un servidor (donde la pregunta
+//! y la respuesta quedan separadas por un viaje de red), las piezas de
+//! abajo están expuestas por separado: `apply_move` para aplicar una sola
+//! jugada, y `finish_turn` para cerrar el turno una vez que no queda nada
+//! más por intentar — `play_turn` está construida encima de esas mismas
+//! dos funciones, no duplica la lógica.
 
 use crate::rules::{legal_moves_for_die, Move, HOME_START};
 use crate::types::{Board, GameState, Player, PlayerState};
@@ -71,23 +72,115 @@ pub struct TurnLog {
     pub leftover_discarded: bool,
 }
 
-/// Aplica un turno sobre `state`.
+/// Chequeo de derrota por postillón atrapado (RULES.md sección 6), a
+/// hacer antes de tirar/jugar dados heredados. No depende de los dados
+/// del turno. Devuelve el `TurnLog` de derrota si aplica, o `None` si el
+/// jugador puede seguir jugando normalmente.
+pub fn check_courier_trapped(state: &GameState, player: Player) -> Option<TurnLog> {
+    if !state.player_state(player).courier.arrived
+        && crate::rules::is_courier_trapped(&state.board, player)
+    {
+        Some(TurnLog {
+            outcomes: Vec::new(),
+            turn_passes: false,
+            repeats_turn: false,
+            winner: Some(player.opponent()),
+            leftover_dice: Vec::new(),
+            leftover_discarded: false,
+        })
+    } else {
+        None
+    }
+}
+
+/// true si, con el tablero como está ahora, ninguno de los `remaining`
+/// tiene movimiento legal para `player`.
+pub fn all_remaining_dead(state: &GameState, player: Player, remaining: &[u8]) -> bool {
+    let courier_arrived = state.player_state(player).courier.arrived;
+    !remaining
+        .iter()
+        .any(|&d| !legal_moves_for_die(&state.board, player, d, courier_arrived).is_empty())
+}
+
+/// Aplica un solo movimiento sobre `state`. Devuelve true si ESTE
+/// movimiento fue el que hizo que el postillón de `player` llegara a su
+/// cuadrante final (para poder avisarlo).
+pub fn apply_move(state: &mut GameState, player: Player, mv: Move) -> bool {
+    match mv {
+        Move::OnBoard { from, to } => {
+            remove_piece(&mut state.board, player, from);
+            add_piece(&mut state.board, player, to);
+            mark_courier_if_arrived(state, player, to)
+        }
+        Move::BearOff { from } => {
+            remove_piece(&mut state.board, player, from);
+            state.player_state_mut(player).borne_off += 1;
+            false
+        }
+    }
+}
+
+/// Cierra el turno de `player` una vez que no queda nada más por intentar
+/// (`leftover` son los dados que terminaron sin poder jugarse — puede
+/// estar vacío). Decide si el turno pasa, si se repite, y a quién le
+/// quedan `pending_dice`. No mira el resultado de partida (`has_won`):
+/// eso se chequea aparte, en el momento de cada `apply_move`.
+pub fn finish_turn(
+    state: &mut GameState,
+    outcomes: Vec<DieOutcome>,
+    leftover: Vec<u8>,
+    is_inherited: bool,
+    repeats_turn_from_roll: bool,
+) -> TurnLog {
+    let player = state.turn;
+    let opponent = player.opponent();
+
+    if leftover.is_empty() {
+        let repeats = !is_inherited && repeats_turn_from_roll;
+        if !repeats {
+            state.turn = opponent;
+        }
+        return TurnLog {
+            outcomes,
+            turn_passes: !repeats,
+            repeats_turn: repeats,
+            winner: None,
+            leftover_dice: Vec::new(),
+            leftover_discarded: false,
+        };
+    }
+
+    let discarded = is_inherited;
+    if !discarded {
+        state.player_state_mut(opponent).pending_dice = Some(leftover.clone());
+    }
+    state.turn = opponent;
+
+    TurnLog {
+        outcomes,
+        turn_passes: true,
+        repeats_turn: false,
+        winner: None,
+        leftover_dice: leftover,
+        leftover_discarded: discarded,
+    }
+}
+
+/// Aplica un turno completo sobre `state`, de punta a punta, en un solo
+/// llamado bloqueante — pensada para el CLI. Ver el módulo para el
+/// diseño; internamente usa `apply_move` y `finish_turn`.
 ///
 /// `dice` es el multiset completo a jugar este turno (los movimientos ya
 /// expandidos de una tirada propia, o los dados heredados tal cual).
-/// `repeats_turn_from_roll` solo importa cuando `is_inherited` es false:
-/// indica si la tirada original fue un triple. `is_inherited` indica si
-/// `dice` viene de `pending_dice` del rival en vez de una tirada propia.
+/// `repeats_turn_from_roll` solo importa cuando `is_inherited` es false.
 ///
-/// `choose_die(state, remaining)` se llama en cada paso, con los dados que
-/// todavía no se jugaron; SIEMPRE hay al menos uno con movimiento legal en
-/// ese momento (si no lo hubiera, el turno ya habría terminado sin volver
-/// a preguntar). Debe devolver el índice, dentro de `remaining`, de uno de
-/// esos dados jugables — no hace falta que sea el único, solo uno válido.
+/// `choose_die(state, remaining)` se llama en cada paso; SIEMPRE hay al
+/// menos uno con movimiento legal en ese momento. Debe devolver el
+/// índice, dentro de `remaining`, de uno de esos dados jugables.
 ///
-/// `choose_move` decide, cuando un dado admite más de un movimiento legal,
-/// cuál aplicar. `on_outcome` se llama en el momento en que se resuelve
-/// cada dado, para que la UI lo muestre en vivo.
+/// `choose_move` decide, cuando un dado admite más de un movimiento
+/// legal, cuál aplicar. `on_outcome` se llama en el momento en que se
+/// resuelve cada dado.
 pub fn play_turn(
     state: &mut GameState,
     dice: &[u8],
@@ -104,19 +197,8 @@ pub fn play_turn(
         state.player_state_mut(player).pending_dice = None;
     }
 
-    // Chequeo de derrota por postillón atrapado (RULES.md sección 6): no
-    // depende de los dados de este turno.
-    if !state.player_state(player).courier.arrived
-        && crate::rules::is_courier_trapped(&state.board, player)
-    {
-        return TurnLog {
-            outcomes: Vec::new(),
-            turn_passes: false,
-            repeats_turn: false,
-            winner: Some(player.opponent()),
-            leftover_dice: Vec::new(),
-            leftover_discarded: false,
-        };
+    if let Some(trapped) = check_courier_trapped(state, player) {
+        return trapped;
     }
 
     let mut remaining: Vec<u8> = dice.to_vec();
@@ -127,12 +209,7 @@ pub fn play_turn(
             break;
         }
 
-        let courier_arrived = state.player_state(player).courier.arrived;
-        let any_legal = remaining
-            .iter()
-            .any(|&d| !legal_moves_for_die(&state.board, player, d, courier_arrived).is_empty());
-
-        if !any_legal {
+        if all_remaining_dead(state, player, &remaining) {
             for &d in &remaining {
                 let outcome = DieOutcome::Unplayable(d);
                 on_outcome(outcome);
@@ -141,6 +218,7 @@ pub fn play_turn(
             break;
         }
 
+        let courier_arrived = state.player_state(player).courier.arrived;
         let pick = choose_die(state, &remaining);
         let die = remaining[pick];
         let legal = legal_moves_for_die(&state.board, player, die, courier_arrived);
@@ -183,52 +261,7 @@ pub fn play_turn(
         })
         .collect();
 
-    let opponent = player.opponent();
-
-    if leftover.is_empty() {
-        let repeats = !is_inherited && repeats_turn_from_roll;
-        if !repeats {
-            state.turn = opponent;
-        }
-        return TurnLog {
-            outcomes,
-            turn_passes: !repeats,
-            repeats_turn: repeats,
-            winner: None,
-            leftover_dice: Vec::new(),
-            leftover_discarded: false,
-        };
-    }
-
-    let discarded = is_inherited;
-    if !discarded {
-        state.player_state_mut(opponent).pending_dice = Some(leftover.clone());
-    }
-    state.turn = opponent;
-
-    TurnLog {
-        outcomes,
-        turn_passes: true,
-        repeats_turn: false,
-        winner: None,
-        leftover_dice: leftover,
-        leftover_discarded: discarded,
-    }
-}
-
-fn apply_move(state: &mut GameState, player: Player, mv: Move) -> bool {
-    match mv {
-        Move::OnBoard { from, to } => {
-            remove_piece(&mut state.board, player, from);
-            add_piece(&mut state.board, player, to);
-            mark_courier_if_arrived(state, player, to)
-        }
-        Move::BearOff { from } => {
-            remove_piece(&mut state.board, player, from);
-            state.player_state_mut(player).borne_off += 1;
-            false
-        }
-    }
+    finish_turn(state, outcomes, leftover, is_inherited, repeats_turn_from_roll)
 }
 
 fn remove_piece(board: &mut Board, player: Player, from_relative: u8) {
