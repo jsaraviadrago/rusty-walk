@@ -521,7 +521,7 @@ fn advance_turn(
                 if let Some(p) = room.in_progress.as_mut() {
                     p.awaiting_move_for_die_idx = Some(die_idx);
                 }
-                let options: Vec<MoveDto> = legal.iter().map(|&m| m.into()).collect();
+                let options: Vec<MoveDto> = legal.iter().map(|&m| move_to_dto(player, m)).collect();
                 send_to_player(
                     room,
                     player,
@@ -549,7 +549,7 @@ fn advance_turn(
             room,
             &ServerMsg::Applied {
                 player: player_str(player),
-                mv: mv.into(),
+                mv: move_to_dto(player, mv),
                 courier_arrived: just_arrived,
             },
         );
@@ -720,12 +720,20 @@ enum MoveDto {
     BearOff { from: u8 },
 }
 
-impl From<Move> for MoveDto {
-    fn from(m: Move) -> Self {
-        match m {
-            Move::OnBoard { from, to } => MoveDto::Board { from, to },
-            Move::BearOff { from } => MoveDto::BearOff { from },
-        }
+/// Convierte un movimiento (en posiciones relativas al camino del jugador,
+/// como lo maneja el motor) a puntos ABSOLUTOS del tablero de 24, que es
+/// lo que el cliente necesita para saber qué casillero resaltar. Para
+/// White coinciden por diseño; para Black hay que trasladarlos — por eso
+/// no alcanza con un `From<Move>` a secas, hace falta saber el jugador.
+fn move_to_dto(player: Player, m: Move) -> MoveDto {
+    match m {
+        Move::OnBoard { from, to } => MoveDto::Board {
+            from: jacquet::rules::absolute_index(player, from) as u8,
+            to: jacquet::rules::absolute_index(player, to) as u8,
+        },
+        Move::BearOff { from } => MoveDto::BearOff {
+            from: jacquet::rules::absolute_index(player, from) as u8,
+        },
     }
 }
 
