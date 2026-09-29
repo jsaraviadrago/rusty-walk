@@ -47,6 +47,11 @@ struct TurnProgress {
     remaining: Vec<u8>,
     is_inherited: bool,
     repeats_turn_from_roll: bool,
+    /// Si el servidor ya le preguntó al jugador "con cuál ficha" para un
+    /// dado puntual (porque tenía más de un movimiento legal), acá queda
+    /// el índice de ESE dado dentro de `remaining`, para no tener que
+    /// volver a preguntar "cuál dado" cuando llegue la respuesta.
+    awaiting_move_for_die_idx: Option<usize>,
 }
 
 struct Room {
@@ -269,6 +274,7 @@ fn on_roll(rooms: &Rooms, code: &str, player: Player) {
             remaining: expanded.moves,
             is_inherited: false,
             repeats_turn_from_roll: expanded.repeats_turn,
+            awaiting_move_for_die_idx: None,
         });
         broadcast(
             room,
@@ -332,10 +338,16 @@ fn advance_turn(
     }
 
     loop {
-        let (mut remaining, is_inherited, repeats_turn_from_roll) = match &room.in_progress {
-            Some(p) => (p.remaining.clone(), p.is_inherited, p.repeats_turn_from_roll),
-            None => return,
-        };
+        let (mut remaining, is_inherited, repeats_turn_from_roll, awaiting_die_idx) =
+            match &room.in_progress {
+                Some(p) => (
+                    p.remaining.clone(),
+                    p.is_inherited,
+                    p.repeats_turn_from_roll,
+                    p.awaiting_move_for_die_idx,
+                ),
+                None => return,
+            };
 
         let player = room.state.turn;
 
@@ -421,48 +433,74 @@ fn advance_turn(
         }
 
         let courier_arrived = room.state.player_state(player).courier.arrived;
-        let alive: Vec<usize> = remaining
-            .iter()
-            .enumerate()
-            .filter(|&(_, &d)| {
-                !legal_moves_for_die(&room.state.board, player, d, courier_arrived).is_empty()
-            })
-            .map(|(i, _)| i)
-            .collect();
 
-        let die_idx = match forced_die_idx.take() {
-            Some(idx) if alive.contains(&idx) => idx,
-            Some(_) => {
-                send_to_player(
-                    room,
-                    player,
-                    &ServerMsg::Error {
-                        message: "ese dado no tiene movimiento ahora".to_string(),
-                    },
-                );
-                return;
-            }
-            None if alive.len() == 1 => alive[0],
-            None => {
-                let mut alive_flags = vec![false; remaining.len()];
-                for &i in &alive {
-                    alive_flags[i] = true;
+        let die_idx = if let Some(idx) = awaiting_die_idx {
+            // Ya habíamos elegido este dado en el paso anterior (se le
+            // preguntó al jugador "con cuál ficha"); no hay que volver a
+            // preguntar "cuál dado".
+            idx
+        } else {
+            let alive: Vec<usize> = remaining
+                .iter()
+                .enumerate()
+                .filter(|&(_, &d)| {
+                    !legal_moves_for_die(&room.state.board, player, d, courier_arrived).is_empty()
+                })
+                .map(|(i, _)| i)
+                .collect();
+
+            match forced_die_idx.take() {
+                Some(idx) if alive.contains(&idx) => idx,
+                Some(_) => {
+                    send_to_player(
+                        room,
+                        player,
+                        &ServerMsg::Error {
+                            message: "ese dado no tiene movimiento ahora".to_string(),
+                        },
+                    );
+                    return;
                 }
-                send_to_player(
-                    room,
-                    player,
-                    &ServerMsg::ChooseDie {
-                        player: player_str(player),
-                        remaining: remaining.clone(),
-                        alive: alive_flags,
-                    },
-                );
-                return;
+                None if alive.len() == 1 => alive[0],
+                None => {
+                    let mut alive_flags = vec![false; remaining.len()];
+                    for &i in &alive {
+                        alive_flags[i] = true;
+                    }
+                    send_to_player(
+                        room,
+                        player,
+                        &ServerMsg::ChooseDie {
+                            player: player_str(player),
+                            remaining: remaining.clone(),
+                            alive: alive_flags,
+                        },
+                    );
+                    return;
+                }
             }
         };
 
         let die = remaining[die_idx];
         let legal = legal_moves_for_die(&room.state.board, player, die, courier_arrived);
+
+        if legal.is_empty() {
+            // El tablero cambió entre que le preguntamos "cuál ficha" y
+            // que respondió (poco probable en la práctica, pero posible
+            // en teoría con dos jugadores). Reseteamos y avisamos.
+            if let Some(p) = room.in_progress.as_mut() {
+                p.awaiting_move_for_die_idx = None;
+            }
+            send_to_player(
+                room,
+                player,
+                &ServerMsg::Error {
+                    message: "esa jugada ya no es válida, el tablero cambió mientras elegías"
+                        .to_string(),
+                },
+            );
+            return;
+        }
 
         let mv = match forced_move_idx.take() {
             Some(idx) => match legal.get(idx) {
@@ -480,6 +518,9 @@ fn advance_turn(
             },
             None if legal.len() == 1 => legal[0],
             None => {
+                if let Some(p) = room.in_progress.as_mut() {
+                    p.awaiting_move_for_die_idx = Some(die_idx);
+                }
                 let options: Vec<MoveDto> = legal.iter().map(|&m| m.into()).collect();
                 send_to_player(
                     room,
@@ -493,6 +534,10 @@ fn advance_turn(
                 return;
             }
         };
+
+        if let Some(p) = room.in_progress.as_mut() {
+            p.awaiting_move_for_die_idx = None;
+        }
 
         let just_arrived = apply_move(&mut room.state, player, mv);
         remaining.remove(die_idx);
@@ -550,6 +595,7 @@ fn start_new_turn(room: &mut Room) {
             remaining: pending.clone(),
             is_inherited: true,
             repeats_turn_from_roll: false,
+            awaiting_move_for_die_idx: None,
         });
         broadcast(
             room,
