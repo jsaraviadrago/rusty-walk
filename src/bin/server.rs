@@ -341,7 +341,37 @@ fn advance_turn(
 
         if remaining.is_empty() {
             room.in_progress = None;
-            return;
+            let log = finish_turn(
+                &mut room.state,
+                Vec::new(),
+                Vec::new(),
+                is_inherited,
+                repeats_turn_from_roll,
+            );
+            broadcast(
+                room,
+                &ServerMsg::TurnEnded {
+                    next_player: player_str(room.state.turn),
+                    leftover: log.leftover_dice,
+                    discarded: log.leftover_discarded,
+                    repeats: log.repeats_turn,
+                },
+            );
+            broadcast_state(room);
+            if let Some(winner) = log.winner {
+                room.winner = Some(winner);
+                broadcast(
+                    room,
+                    &ServerMsg::GameOver {
+                        winner: player_str(winner),
+                    },
+                );
+                return;
+            }
+            start_new_turn(room);
+            forced_die_idx = None;
+            forced_move_idx = None;
+            continue;
         }
 
         if all_remaining_dead(&room.state, player, &remaining) {
