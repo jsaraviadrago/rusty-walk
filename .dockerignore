@@ -1,0 +1,15 @@
+# flyctl launch added from .gitignore
+target
+**/**/*.rs.bk
+**/*.pdb
+
+# Editor
+**/.vscode
+**/.idea
+
+# Logs / debug output sueltos
+**/*.log
+**/stdout
+**/stderr
+**/rustc_info.json
+fly.toml
