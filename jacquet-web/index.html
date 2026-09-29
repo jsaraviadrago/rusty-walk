@@ -89,13 +89,16 @@
     border: 1px solid rgba(185,138,78,0.5);
     color: var(--brass-bright);
     border-radius: 999px;
-    width: 34px;
+    padding: 0 14px;
     height: 34px;
-    font-size: 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: "Inter", sans-serif;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    white-space: nowrap;
   }
   .icon-btn:hover { background: rgba(185,138,78,0.15); border-color: var(--brass-bright); }
 
@@ -243,7 +246,7 @@
       <div class="subtitle">Variante familiar &middot; 3 dados</div>
     </div>
     <div class="header-right">
-      <button class="icon-btn" id="rules-btn" title="Ver reglas" aria-label="Ver reglas">?</button>
+      <button class="icon-btn" id="rules-btn" title="Ver reglas" aria-label="Ver reglas">Reglas</button>
       <div id="turn-indicator" class="hidden">Turno de White</div>
     </div>
   </header>
@@ -297,6 +300,7 @@
       <li>Doble parcial (2 de 3 iguales, ej. 4-4-2): se juega 4,4,4,4,2 — 5 movimientos, orden libre.</li>
       <li>Triple (3 iguales): se juega 6 veces y <strong>se repite el turno</strong>.</li>
       <li>Dado sin movimiento: no se pierde en el momento, se reintenta más tarde. Si al final nada sirve, pasa al rival como dados heredados; si tampoco a él, se pierde para siempre.</li>
+      <li><strong>Ficha tocada es ficha jugada:</strong> una vez aplicado un movimiento no se puede deshacer para probar otro orden.</li>
     </ul>
     <h3>Bloqueo</h3>
     <ul>
@@ -314,6 +318,12 @@
     <ul>
       <li>Solo se puede empezar a retirar fichas cuando las 15 están en el cuadrante final.</li>
       <li>Gana quien retira sus 15 fichas primero.</li>
+    </ul>
+    <h3>Vocabulario tradicional de los dados</h3>
+    <ul>
+      <li>1 = As &middot; 2 = Don &middot; 3 = Tren &middot; 4 = Cuadra &middot; 5 = Quina &middot; 6 = Sena</li>
+      <li>Doble parcial: "[plural del que se repite] al/a la [suelto]" — ej. 2,2,3 → "dones al tren".</li>
+      <li>Triple: "[plural] generales" — ej. 5,5,5 → "quinas generales".</li>
     </ul>
     <div class="close-row"><button class="action" id="rules-close">Cerrar</button></div>
   </div>
