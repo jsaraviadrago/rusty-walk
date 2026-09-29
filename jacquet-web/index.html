@@ -65,6 +65,8 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
     gap: 12px;
     margin-bottom: 14px;
     padding-bottom: 12px;
@@ -72,7 +74,7 @@
   }
   header h1 { margin: 0; font-size: 1.5rem; font-weight: 600; color: var(--ivory); }
   header .subtitle { font-size: 0.8rem; color: var(--muted-text); margin-top: 2px; }
-  .header-right { display: flex; align-items: center; gap: 8px; }
+  .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
   #turn-indicator {
     font-size: 0.9rem;
@@ -235,6 +237,14 @@
     .chip { width: 21px; height: 21px; font-size: 0.6rem; margin-top: -7px; }
     .row.bottom .chip { margin-bottom: -7px; }
     header h1 { font-size: 1.2rem; }
+    .icon-btn { padding: 0 10px; font-size: 0.72rem; height: 30px; }
+    #turn-indicator {
+      font-size: 0.7rem;
+      padding: 5px 10px;
+      white-space: normal;
+      max-width: 100%;
+      text-align: center;
+    }
   }
 </style>
 </head>
