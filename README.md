@@ -451,4 +451,4 @@ That is the product: **a family memory made playable.**
 
 ## License
 
-To be defined.
+MIT Licensed.
