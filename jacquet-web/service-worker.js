@@ -1,3 +1,4 @@
+
 const CACHE_NAME = "jacquet-v4";
 const ASSETS = ["./", "./index.html", "./manifest.json"];
 
