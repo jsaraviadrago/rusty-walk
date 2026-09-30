@@ -9,6 +9,8 @@ The project started with a simple goal: **make sure the rules do not disappear**
 
 This is not a generic backgammon clone. The family rules are intentionally different: three dice, partial doubles, triples that repeat the turn, inherited dice, a strict courier/postillon mechanic, one-piece blocking, no hitting and a custom trapped-courier defeat condition.
 
+If you are curious you can play it here: [Jacquet](https://jacquet-game.netlify.app/)
+
 ---
 
 ## What is already working
